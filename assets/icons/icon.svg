@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#33449c"/><stop offset="1" stop-color="#232e78"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(30.7 30.7) scale(0.88)">
+  <!-- the passage of stars -->
+  <path d="M120 214 C170 150 342 150 392 214" fill="none" stroke="#ffd23f" stroke-width="7" stroke-dasharray="4 16" stroke-linecap="round" opacity="0.85"/>
+  <g fill="#ffd23f" stroke="#1b1830" stroke-width="7" stroke-linejoin="round">
+    <path d="M256 92 l17 41 41 17 -41 17 -17 41 -17 -41 -41 -17 41 -17z"/>
+    <path d="M150 168 l8 19 19 8 -19 8 -8 19 -8 -19 -19 -8 19 -8z"/>
+    <path d="M362 168 l8 19 19 8 -19 8 -8 19 -8 -19 -19 -8 19 -8z"/>
+  </g>
+  <!-- the open book -->
+  <path d="M120 268 C170 252 220 258 252 278 V420 C220 400 170 394 120 410 Z" fill="#fffaf0" stroke="#1b1830" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M392 268 C342 252 292 258 260 278 V420 C292 400 342 394 392 410 Z" fill="#fffaf0" stroke="#1b1830" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M148 300 C180 292 210 296 232 308 M148 334 C180 326 210 330 232 342 M148 368 C180 360 210 364 232 376" fill="none" stroke="#1b1830" stroke-width="7" stroke-linecap="round" opacity="0.35"/>
+  <path d="M364 300 C332 292 302 296 280 308 M364 334 C332 326 302 330 280 342 M364 368 C332 360 302 364 280 376" fill="none" stroke="#1b1830" stroke-width="7" stroke-linecap="round" opacity="0.35"/>
+  <path d="M256 280 V424" stroke="#1b1830" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>
