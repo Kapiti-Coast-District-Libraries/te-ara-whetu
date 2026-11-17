@@ -328,10 +328,11 @@ function spend(n) { if (S.pages + 1e-9 < n) return false; S.pages = Math.max(0, 
 const WORDS = ['million', 'billion', 'trillion', 'quadrillion', 'quintillion', 'sextillion'];
 function fmt(n, dec = 0) {
   if (!isFinite(n)) return '∞';
-  if (n < 1000) return dec && n < 100 && n % 1 ? n.toFixed(1) : Math.floor(n).toLocaleString('en-NZ');
+  if (n < 1000) return dec && n < 99.95 && n % 1 ? n.toFixed(1) : Math.floor(n).toLocaleString('en-NZ');
   if (n < 1e6) return Math.floor(n).toLocaleString('en-NZ');
-  const i = Math.min(Math.floor(Math.log10(n) / 3) - 2, WORDS.length - 1);
-  const v = n / Math.pow(1000, i + 2);
+  let i = Math.min(Math.floor(Math.log10(n) / 3) - 2, WORDS.length - 1);
+  let v = n / Math.pow(1000, i + 2);
+  if (v >= 999.95 && i < WORDS.length - 1) { i++; v /= 1000; }
   return `${v.toFixed(v < 100 ? 2 : 1)} ${WORDS[i]}`;
 }
 
@@ -377,9 +378,13 @@ function burst(x, y, n, kind = 'paper', spread = 1) {
     parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4, life: 0, max: 50 + Math.random() * 30, kind,
       c: kind === 'confetti' ? CONFETTI[i % CONFETTI.length] : kind === 'star' ? '#ffd23f' : PAPER[i % 3], w: kind === 'paper' ? 11 : 8, h: kind === 'paper' ? 14 : 6 });
   }
+  if (typeof wake === 'function') wake();
 }
 function celebrate() { const w = innerWidth; for (let k = 0; k < 5; k++) setTimeout(() => burst(w * (0.2 + Math.random() * 0.6), innerHeight * 0.45, 40, 'confetti', 1.4), k * 220); }
+let fxDirty = false;
 function drawFx() {
+  if (!parts.length) { if (fxDirty) { fxc.clearRect(0, 0, innerWidth, innerHeight); fxDirty = false; } return; }
+  fxDirty = true;
   fxc.clearRect(0, 0, innerWidth, innerHeight);
   parts = parts.filter((p) => p.life < p.max);
   for (const p of parts) {
@@ -482,19 +487,27 @@ function drawRain(dt) {
     c.strokeStyle = `rgba(28, 46, 84, ${0.2 + band * 0.07})`; c.lineWidth = (1.9 + band * 0.9) * lk; c.stroke();
     c.strokeStyle = `rgba(238, 249, 255, ${0.62 + band * 0.14})`; c.lineWidth = (0.9 + band * 0.55) * lk; c.stroke();
   }
-  // splashes: a little ring on the ground and two droplets that hop out
-  for (const s of splashes) {
-    const u = s.t / s.life, a = 1 - u;
-    const rx = (1.5 + 7 * u) * s.sc, ry = rx * 0.34;
-    c.beginPath(); c.ellipse(s.x, s.y, rx, ry, 0, 0, Math.PI * 2);
-    c.strokeStyle = `rgba(40, 78, 120, ${0.5 * a})`; c.lineWidth = 1.3 * s.sc; c.stroke();
-    const hop = 4 * u * (1 - u) * 9 * s.sc, spread = (2 + 6 * u) * s.sc;
-    c.beginPath();
-    c.arc(s.x - spread * s.flip, s.y - hop, 1.25 * s.sc, 0, Math.PI * 2);
-    c.moveTo(s.x + spread * 0.8 * s.flip + 1.05 * s.sc, s.y - hop * 0.75);
-    c.arc(s.x + spread * 0.8 * s.flip, s.y - hop * 0.75, 1.05 * s.sc, 0, Math.PI * 2);
-    c.fillStyle = `rgba(240, 250, 255, ${a})`; c.fill();
-    c.strokeStyle = `rgba(28, 46, 84, ${0.45 * a})`; c.lineWidth = 0.8 * s.sc; c.stroke();
+  // splashes: a little ring on the ground and two droplets that hop out (drawn in four batches by fade)
+  for (let q = 0; q < 4; q++) {
+    const a = 1 - (q + 0.5) / 4;
+    const rings = new Path2D(), dots = new Path2D();
+    let any = false, sc = 1;
+    for (const s of splashes) {
+      const u = s.t / s.life;
+      if (Math.min(3, Math.floor(u * 4)) !== q) continue;
+      any = true; sc = s.sc;
+      const rx = (1.5 + 7 * u) * s.sc, ry = rx * 0.34;
+      rings.moveTo(s.x + rx, s.y); rings.ellipse(s.x, s.y, rx, ry, 0, 0, Math.PI * 2);
+      const hop = 4 * u * (1 - u) * 9 * s.sc, spread = (2 + 6 * u) * s.sc;
+      dots.moveTo(s.x - spread * s.flip + 1.25 * s.sc, s.y - hop);
+      dots.arc(s.x - spread * s.flip, s.y - hop, 1.25 * s.sc, 0, Math.PI * 2);
+      dots.moveTo(s.x + spread * 0.8 * s.flip + 1.05 * s.sc, s.y - hop * 0.75);
+      dots.arc(s.x + spread * 0.8 * s.flip, s.y - hop * 0.75, 1.05 * s.sc, 0, Math.PI * 2);
+    }
+    if (!any) continue;
+    c.strokeStyle = `rgba(40, 78, 120, ${0.5 * a})`; c.lineWidth = 1.3 * sc; c.stroke(rings);
+    c.fillStyle = `rgba(240, 250, 255, ${a})`; c.fill(dots);
+    c.strokeStyle = `rgba(28, 46, 84, ${0.45 * a})`; c.lineWidth = 0.8 * sc; c.stroke(dots);
   }
   c.restore();
 }
@@ -577,13 +590,13 @@ function paintScene(idx) {
   rainOn = !!st.rain;
   $('#printYear').textContent = h.year;
   $('#printTitle').textContent = h.title;
-  focusX = FOCUS_X[h.focus] || 365;
+  baseFocus = FOCUS_X[h.focus] || 365;
   shownIdx = idx;
   walkSig = null; renderWalkers(st);
   layoutView();
 }
 /* turn the page: pop-ups fold flat, a page sweeps over, the new year folds up */
-let turning = false, turnQueue = null;
+let turning = false, turnQueue = null, turnGen = 0;
 function turnTo(idx) {
   if (idx === shownIdx && !turning) return;
   if (turning) { turnQueue = idx; return; }
@@ -591,11 +604,13 @@ function turnTo(idx) {
   turning = true;
   const fwd = idx > shownIdx;
   const sheet = $('#sheet');
+  const gen = ++turnGen;
   bookEl.classList.add('folded');
-  setTimeout(() => { sheet.className = `sheet ${fwd ? 'fwd' : 'bwd'}`; sfx('page'); }, 260);
-  setTimeout(() => paintScene(idx), 560);
-  setTimeout(() => { bookEl.classList.remove('folded'); }, 880);
+  setTimeout(() => { if (gen !== turnGen) return; sheet.className = `sheet ${fwd ? 'fwd' : 'bwd'}`; sfx('page'); }, 260);
+  setTimeout(() => { if (gen === turnGen) paintScene(idx); }, 560);
+  setTimeout(() => { if (gen === turnGen) bookEl.classList.remove('folded'); }, 880);
   setTimeout(() => {
+    if (gen !== turnGen) return;
     sheet.className = 'sheet';
     turning = false;
     if (turnQueue !== null) { const q = turnQueue; turnQueue = null; turnTo(q); }
@@ -603,7 +618,7 @@ function turnTo(idx) {
 }
 
 /* fit the book to the stage; on small screens zoom in and pan to the building that matters */
-let focusX = 95, spot = null, spotT = 0;
+let baseFocus = 95, spot = null, spotT = 0;
 function spotlight(x, ms) { spot = { x }; layoutView(); clearTimeout(spotT); spotT = setTimeout(() => { spot = null; layoutView(); }, ms); }
 /* the box the book and its pop-ups fill, in the view's own 700×470 units (measured once) */
 let content = { x: 30, y: 20, w: 640, h: 440 };
@@ -621,6 +636,11 @@ function measureContent() {
 function layoutView() {
   const w = stage.clientWidth, h = stage.clientHeight;
   if (!w || !h) return;
+  let focusX = baseFocus;
+  if (taskActive() && S.task === shownIdx) {
+    const t = TASKS[HISTORY[S.task].task], xs = t.pts.map((p) => p[0]).concat(t.to ? [t.to[0]] : []);
+    focusX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  }
   const pad = 14;
   let s = Math.min((w - pad * 2) / content.w, (h - pad * 2) / content.h);
   let cx = content.x + content.w / 2;
@@ -631,7 +651,7 @@ function layoutView() {
     s = Math.min(s * zoom, (h - pad) / (content.h * 0.82));
     const fx = 10 + 18 + (focusX / 760) * 644;
     const half = (w / 2) / s;
-    cx = Math.max(content.x + half * 0.55, Math.min(content.x + content.w - half * 0.55, fx));
+    cx = Math.max(content.x + half, Math.min(content.x + content.w - half, fx));
     if (content.w * s <= w) cx = content.x + content.w / 2;
   } else if (content.fy1) {
     // bigger screens: frame the buildings and the page, and pan gently to the building the story is about
@@ -648,7 +668,8 @@ function layoutView() {
     // a page has just opened: move in on whatever changed so it is not missed
     s = Math.max(s, Math.min(s * 1.34, (h - 6) / (content.sy1 - content.sy0)));
     const fx = 10 + 18 + (spot.x / 760) * 644, half = (w / 2) / s;
-    cx = Math.max(content.x + half * 0.42, Math.min(content.x + content.w - half * 0.42, fx));
+    cx = Math.max(content.x + half, Math.min(content.x + content.w - half, fx));
+    if (content.w * s <= w) cx = content.x + content.w / 2;
     cy = (content.sy0 + content.sy1) / 2;
   }
   const tx = (350 - cx) * s, ty = (235 - cy) * s + (w < 620 ? (h - content.h * s) / 2 * 0 : 0);
@@ -740,6 +761,7 @@ function changedSpot(i) {
   return ch[h.focus] ? h.focus : [15, 77, 9].find((k) => ch[k]) || h.focus;
 }
 const bonusText = (m) => (m >= 2 ? 'All reading doubles!' : m > 1 ? `All reading +${Math.round((m - 1) * 100)}%` : '');
+let storyPending = -1, storyT = 0;
 function arrive(i, quiet) {
   const h = HISTORY[i];
   if (h.id === 'closure') clearMould();
@@ -752,7 +774,10 @@ function arrive(i, quiet) {
   const extra = [h.effect, bonusText(h.mult || 1)].filter(Boolean).join(' ');
   if (h.big) {
     const task = h.task && TASKS[h.task];
-    setTimeout(() => {
+    storyPending = i; clearTimeout(storyT);
+    storyT = setTimeout(() => {
+      storyPending = -1;
+      if (S.step <= i) return;                       // the game was started over meanwhile
       openModal({
         date: h.date, title: h.title,
         body: `<p>${h.text}</p>${extra ? `<p class="eff">${extra}</p>` : ''}${task ? `<p><b>Can you help?</b> ${task.how}</p>` : ''}`,
@@ -790,11 +815,12 @@ function anchorAt(x, y, id) {
   return c;
 }
 function startTask() {
-  if (!taskActive()) return;
+  if (!taskActive() || storyPending >= 0) return;
   const h = HISTORY[S.task], t = TASKS[h.task];
   viewIdx = null; turnTo(S.task); renderCaption(true);
   clearTaskButtons();
   S.taskLeft = S.taskLeft && S.taskLeft.length === t.pts.length ? S.taskLeft : t.pts.map(() => 1);
+  if (S.taskLeft.every((v) => !v)) { finishTask(); return; }
   t.pts.forEach(([x, y], k) => {
     if (!S.taskLeft[k]) return;
     const a = anchorAt(x, y, `t${k}`);
@@ -862,8 +888,9 @@ function clearTaskButtons() {
 function placeTaskButtons() {
   if (!taskBtns.length) return;
   const s = stage.getBoundingClientRect();
+  const boxes = TASKS[HISTORY[S.task].task].kind === 'box';
   taskBtns.forEach(({ b, a, done }) => {
-    if (done) return;
+    if (done && boxes) return;
     const r = a.getBoundingClientRect();
     b.style.left = `${r.left + r.width / 2 - s.left}px`;
     b.style.top = `${r.top + r.height / 2 - s.top}px`;
@@ -900,8 +927,8 @@ function renderShelf(arrived = -1) {
       return `<div class="slot${h.big ? ' big' : ''}" aria-hidden="true">?</div>`;
     }).join('');
     $('#shelfCount').textContent = `${S.step} of ${N_EVENTS} books`;
-    const now = books.querySelector('.now');
-    if (now) books.scrollLeft = Math.max(0, now.offsetLeft - books.clientWidth / 2);
+    const now = books.querySelector('.viewing') || books.querySelector('.now');
+    if (now && (now.offsetLeft < books.scrollLeft || now.offsetLeft + now.offsetWidth > books.scrollLeft + books.clientWidth)) books.scrollLeft = Math.max(0, now.offsetLeft - books.clientWidth / 2);
   }
   const fill = $('#slotFill');
   if (fill) fill.style.height = `${(nextProgress() * 100).toFixed(1)}%`;
@@ -922,44 +949,48 @@ function renderCaption(fresh) {
   renderNext();
 }
 let nextSig = '';
+const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; };
+const setAttr = (el, k, v) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
+const setW = (el, v) => { if (el.style.width !== v) el.style.width = v; };
 function renderNext() {
   const el = $('#capNext');
   if (taskActive()) {
-    const t = TASKS[HISTORY[S.task].task], waiting = $('#taskBanner').hidden;
-    const sig = `task${S.task}${waiting}`;
+    const t = TASKS[HISTORY[S.task].task], waiting = $('#taskBanner').hidden && storyPending < 0;
+    const sig = `task${S.task}${waiting}${storyPending}`;
     if (sig === nextSig) return;
     nextSig = sig;
-    $('#nextLabel').textContent = `Job to do: ${t.verb}`;
-    $('#nextBar').style.width = '100%';
-    $('#nextLeft').innerHTML = waiting ? '<button class="btn primary" id="resumeTask" style="min-height:34px;padding:2px 12px">Let\'s go!</button>' : 'Tap the picture!';
+    setText($('#nextLabel'), `Job to do: ${t.verb}`);
+    setW($('#nextBar'), '100%');
+    $('#nextLeft').innerHTML = storyPending >= 0 ? '' : waiting ? '<button class="btn primary" id="resumeTask" style="min-height:34px;padding:2px 12px">Let\'s go!</button>' : 'Tap the picture!';
     return;
   }
   nextSig = '';
   if (S.step >= N_EVENTS) {
-    $('#nextLabel').textContent = 'Your shelf is full. Te Ara Whetū is open!';
-    $('#nextBar').style.width = '100%';
-    $('#nextLeft').textContent = '';
+    setText($('#nextLabel'), 'Your shelf is full. Te Ara Whetū is open!');
+    setW($('#nextBar'), '100%');
+    setText($('#nextLeft'), '');
     return;
   }
   const nx = HISTORY[S.step];
   if (nextReady()) {
-    $('#nextLabel').textContent = `The ${nx.year} book is ready!`;
-    $('#nextBar').style.width = '100%';
-    const msg = $('#turnBtn').hidden ? 'Have a look first…' : 'Turn the page!';
+    setText($('#nextLabel'), `The ${nx.year} book is ready!`);
+    setW($('#nextBar'), '100%');
+    const msg = viewIdx !== null ? 'Tap “Back to now” to turn the page' : $('#turnBtn').hidden ? 'Have a look first…' : 'Turn the page!';
     if ($('#nextLeft').textContent !== msg) $('#nextLeft').textContent = msg;
-    el.setAttribute('aria-label', `The ${nx.year} book is ready. Turn the page.`);
+    setAttr(el, 'aria-label', `The ${nx.year} book is ready. Turn the page.`);
     return;
   }
-  $('#nextLabel').textContent = `Next book: ${nx.year}`;
-  $('#nextBar').style.width = `${(nextProgress() * 100).toFixed(1)}%`;
+  setText($('#nextLabel'), `Next book: ${nx.year}`);
+  setW($('#nextBar'), `${(nextProgress() * 100).toFixed(1)}%`);
   const left = Math.max(0, nx.at * EVENT_SCALE - S.total);
   const t = `${fmt(left)} pages to go`;
   if ($('#nextLeft').textContent !== t) $('#nextLeft').textContent = t;
-  el.setAttribute('aria-label', `Next book: ${nx.year}. ${t}.`);
+  setAttr(el, 'aria-label', `Next book: ${nx.year}. ${t}.`);
 }
 
 /* the counter */
-let lastTop = '';
+let lastTop = '', lastStreak = -1;
+const streakBar = $('#streakBar'), streakEl = $('#streak');
 function renderTop() {
   const p = fmt(S.pages), r = fmt(cache.pps, 1);
   const key = p + '|' + r;
@@ -969,8 +1000,8 @@ function renderTop() {
     $('#rate').innerHTML = `${r}<span class="long"> pages a second</span><span class="short">/s</span>`;
     if (!KIOSK) document.title = `${p} pages · Te Ara Whetū`;
   }
-  $('#streakBar').style.width = `${(streak * 100).toFixed(0)}%`;
-  $('#streak').classList.toggle('full', streak >= 1);
+  const sk = Math.round(streak * 100);
+  if (sk !== lastStreak) { lastStreak = sk; streakBar.style.width = `${sk}%`; streakEl.classList.toggle('full', streak >= 1); }
 }
 function renderBuffs() {
   const now = Date.now();
@@ -1011,16 +1042,16 @@ function renderHelpers() {
   box.querySelectorAll('[data-helper]').forEach((row) => {
     const h = HELPERS.find((x) => x.id === row.dataset.helper);
     const cost = priceOf(h, bulk), can = S.pages >= cost;
-    row.disabled = !can;
-    const pr = row.querySelector('[data-price]'), pt = `${bulk > 1 ? `×${bulk} · ` : ''}${fmt(cost)}`;
+    if (row.disabled !== !can) row.disabled = !can;
+    const pr = row.querySelector('[data-price]'), pt = `${bulk > 1 ? `×${bulk} · ` : ''}${fmt(Math.ceil(cost))}`;
     if (pr.textContent !== pt) pr.textContent = pt;
     pr.classList.toggle('cant', !can);
     const ea = row.querySelector('[data-each]'), et = `+${fmt(h.pps * helperMult(h.id) * globalMult() * SPEED, 1)}/s each`;
     if (ea.textContent !== et) ea.textContent = et;
     const ow = row.querySelector('[data-own]'), on = String(countOf(h.id));
     if (ow.textContent !== on) ow.textContent = on;
-    row.setAttribute('aria-label', `${h.name}. ${h.desc} Costs ${pt} pages. You have ${on}.`);
-    row.title = h.desc;
+    setAttr(row, 'aria-label', `${h.name}. ${h.desc} Costs ${pt} pages. You have ${on}.`);
+    if (row.title !== h.desc) row.title = h.desc;
   });
 }
 function buyHelper(id) {
@@ -1052,13 +1083,13 @@ function renderUpgrades() {
     upSig = sig;
     $('#upgrid').innerHTML = avail.length ? avail.map((u) => {
       const l = upLook(u);
-      return `<button class="tile" data-tile="${u.id}" style="background:${l.bg}" aria-label="${u.name}: ${u.eff} ${fmt(u.cost)} pages" aria-pressed="${u.id === selectedUp}" title="${u.name}">${l.icon}</button>`;
+      return `<button class="tile" data-tile="${u.id}" style="background:${l.bg}" aria-label="${u.name}: ${u.eff} ${fmt(Math.ceil(u.cost))} pages" aria-pressed="${u.id === selectedUp}" title="${u.name}">${l.icon}</button>`;
     }).join('') : '<p class="empty" style="grid-column:1/-1">No upgrades yet. Hire helpers and keep reading.</p>';
     const u = selectedUp && UP_BY_ID[selectedUp], d = $('#updetail');
     d.hidden = !u;
     if (u) {
       const l = upLook(u);
-      d.innerHTML = `<span class="k chip" style="background:${l.bg}">${l.label}</span><span><span class="n">${u.name}</span><br><span class="e">${u.eff}</span></span><button class="btn primary" data-up="${u.id}">${fmt(u.cost)}</button>${u.fact ? `<span class="f">${u.fact}</span>` : ''}`;
+      d.innerHTML = `<span class="k chip" style="background:${l.bg}">${l.label}</span><span><span class="n">${u.name}</span><br><span class="e">${u.eff}</span></span><button class="btn primary" data-up="${u.id}">${fmt(Math.ceil(u.cost))}</button>${u.fact ? `<span class="f">${u.fact}</span>` : ''}`;
     }
   }
   let afford = 0;
@@ -1169,7 +1200,7 @@ function spawnMould() {
     toast('Scrubbed!', `+${fmt(gain)} pages. The leaky old building needs lots of this.`);
   });
 }
-function clearMould() { if (mould) { mould.b.remove(); mould.a.remove(); mould = null; } buffs = buffs.filter((b) => b.id !== 'musty'); }
+function clearMould() { if (mould) { mould.b.remove(); mould.a.remove(); mould = null; } const n = buffs.length; buffs = buffs.filter((b) => b.id !== 'musty'); if (buffs.length !== n) recompute(); }
 function placeMould() {
   if (!mould) return;
   const s = stage.getBoundingClientRect(), r = mould.a.getBoundingClientRect();
@@ -1275,11 +1306,13 @@ function openModal({ date, title, body, acts }) {
   $('#modalTitle').textContent = title;
   $('#modalBody').innerHTML = body;
   modalBack.hidden = false;
+  modalBack.prepend(fx);
   setActs(acts || []);
   if (!acts || !acts.length) setTimeout(() => { const f = $('#modalBody button') || $('#modalX'); f.focus(); }, 40);
 }
 function closeModal() {
   modalBack.hidden = true; sheet = null;
+  document.body.appendChild(fx);
   if (modalReturn && modalReturn.focus && document.contains(modalReturn)) modalReturn.focus();
   if (taskActive() && $('#taskBanner').hidden) startTask();
 }
@@ -1392,9 +1425,14 @@ function load(raw) {
 window.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);
 function resetGame(chapter) {
-  const keep = chapter ? { chapter: S.chapter + 1, badges: S.badges, allTime: S.allTime, stars: S.stars, mould: S.mould, quizRight: S.quizRight, bestStreak: S.bestStreak, timeTravel: S.timeTravel, tasksDone: S.tasksDone, introSeen: true } : {};
+  const keep = chapter ? { chapter: S.chapter + 1, badges: S.badges, allTime: S.allTime, stars: S.stars, mould: S.mould, quiz: S.quiz, quizRight: S.quizRight, bestStreak: S.bestStreak, timeTravel: S.timeTravel, tasksDone: S.tasksDone, introSeen: true } : {};
   S = Object.assign(fresh(), keep);
   buffs = []; streak = 0; viewIdx = null; selectedUp = null;
+  bulk = 1; ['1', '10', '100'].forEach((n) => $(`#bulk-${n}`).setAttribute('aria-pressed', String(n === '1')));
+  if (KIOSK) { soundOn = false; renderSound(); }
+  clearTimeout(storyT); storyPending = -1; clearTimeout(spotT); spot = null;
+  turnGen++; turning = false; turnQueue = null; bookEl.classList.remove('folded'); $('#sheet').className = 'sheet';
+  if (!modalBack.hidden) closeModal();
   clearMould(); clearTaskButtons(); $('#taskBanner').hidden = true; $('#travelBanner').hidden = true;
   if (quizEl) { quizEl.remove(); quizEl = null; }
   recompute();
@@ -1441,15 +1479,19 @@ function kioskCheck() {
    MAIN LOOP
    ===================================================================== */
 function renderAll() { renderTop(); renderShelf(); renderNext(); renderHelpers(); renderUpgrades(); renderBonus(); renderBuffs(); }
-let last = performance.now(), uiAt = 0, slowAt = 0;
-function frame(now) { update(now); requestAnimationFrame(frame); }
+let last = performance.now(), uiAt = 0, slowAt = 0, rafOn = false;
+// full speed only while paper, confetti, rain, a job, mould or the tap streak needs it; otherwise ten calm ticks a second
+const busy = () => parts.length > 0 || fxDirty || rainOn || rainLevel > 0 || drops.length > 0 || splashes.length > 0 || rainDirty || taskBtns.length > 0 || !!mould || streak > 0;
+function frame(now) { update(now); if (busy()) requestAnimationFrame(frame); else rafOn = false; }
+function wake() { if (!rafOn) { rafOn = true; requestAnimationFrame(frame); } }
+function idleTick() { if (!rafOn) { update(performance.now()); if (busy()) wake(); } }
 function update(now) {
-  const dt = Math.min(0.5, (now - last) / 1000);
+  const raw = Math.max(0, (now - last) / 1000), dt = Math.min(0.5, raw);
   last = now;
   const wall = Date.now();
   if (buffs.some((b) => b.until <= wall)) { buffs = buffs.filter((b) => b.until > wall); recompute(); }
   if (now - lastTap > 700) streak = Math.max(0, streak - dt * 0.6);
-  earn(cache.pps * dt);
+  earn(cache.pps * Math.min(raw, 120));
   renderTop();
   placeTaskButtons(); placeMould();
   drawFx();
@@ -1463,7 +1505,7 @@ function update(now) {
   if (now - slowAt > 1000) {
     slowAt = now;
     for (const b of BADGES) if (!S.badges[b.id] && b.test()) { S.badges[b.id] = 1; recompute(); toast(`Badge: ${b.name}`, `${b.desc} · +1% reading`); }
-    const calm = modalBack.hidden && intro.hidden && !document.hidden && !turning;
+    const calm = modalBack.hidden && intro.hidden && !document.hidden && !turning && storyPending < 0;
     if (wall >= nextBookAt) { if (calm) spawnRunaway(); nextBookAt = wall + (60000 + Math.random() * 90000) / bookFreq(); }
     if (wall >= nextMouldAt) {
       if (calm && reached('apnk') && !reached('closure')) spawnMould();
@@ -1499,11 +1541,11 @@ function start(hot) {
   renderAll(); renderCaption(false); rotateNews();
   if (KIOSK || !S.introSeen) showIntro(KIOSK ? 'Tap to play' : null);
   if (taskActive()) setTimeout(startTask, 300);
-  requestAnimationFrame(frame);
+  wake(); setInterval(idleTick, 100);
   setInterval(save, 10000);
 }
 addEventListener('hashchange', () => location.reload());
-window.__tw = { get S() { return S; }, set S(v) { S = v; }, HISTORY, HELPERS, UPGRADES, priceOf, recompute, cache, buyHelper, buyUpgrade, availableUpgrades, checkHistory, curIdx, earn, startTask, finishTask, hitTask, openBook, spawnQuiz, spawnMould, spawnRunaway, setBulk: (n) => (bulk = n), paintScene, turnTo, update, turnPage, nextReady, changedSpot, get rain() { return { on: rainOn, level: rainLevel, drops: drops.length, splashes: splashes.length }; } };
+window.__tw = { get S() { return S; }, set S(v) { S = v; }, HISTORY, HELPERS, UPGRADES, priceOf, recompute, cache, buyHelper, buyUpgrade, availableUpgrades, checkHistory, curIdx, earn, startTask, finishTask, hitTask, openBook, spawnQuiz, spawnMould, spawnRunaway, setBulk: (n) => (bulk = n), paintScene, turnTo, update, turnPage, nextReady, changedSpot, get busy() { return { parts: parts.length, fxDirty, rainOn, rainLevel, drops: drops.length, splashes: splashes.length, rainDirty, tasks: taskBtns.length, mould: !!mould, streak }; }, get rain() { return { on: rainOn, level: rainLevel, drops: drops.length, splashes: splashes.length }; } };
 start({});
 
 

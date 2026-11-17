@@ -61,9 +61,9 @@ two minutes.
 
 - Nothing is loaded from other websites, and the game sends no data anywhere. Saved progress stays in
   the player's own browser.
-- Link previews use `preview.png`. Some sites need the full address: if the preview doesn't appear,
-  change `content="preview.png"` in `index.html` to
-  `content="https://<your-username>.github.io/te-ara-whetu/preview.png"`.
+- Link previews use `preview.png`. `index.html` points to it by its full address,
+  `https://kapiti-coast-district-libraries.github.io/te-ara-whetu/preview.png`. If the site ever moves to a
+  different address, change the four places that address appears in `index.html` to match.
 - The buildings are original drawings made from photos and council renders in the project's visual
   archive. No photos are included in the game.
 - Te Ara Whetū in 2027 is drawn from the council's design render, since the finished building had not

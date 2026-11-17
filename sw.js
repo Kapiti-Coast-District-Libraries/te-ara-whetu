@@ -1,7 +1,7 @@
 /* Te Ara Whetū offline helper. Keeps a copy of the game on the device so it runs without a connection.
    VERSION changes whenever any file changes; the browser then fetches the new files in the background
    and uses them from the next time the game is opened. */
-const VERSION = 'f99071b7cbf3';
+const VERSION = '9021ede2a718';
 const CACHE = 'te-ara-whetu-' + VERSION;
 const FILES = [
   "./",
